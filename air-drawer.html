@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AIR DRAWER — Neon Hand Writing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root{
+    --bg:#05060a;
+    --panel:#0b0e16;
+    --neon-cyan:#00f6ff;
+    --neon-pink:#ff2bd6;
+    --neon-yellow:#f4ff52;
+    --neon-green:#39ff8f;
+    --neon-purple:#b86bff;
+    --muted:#6a7290;
+    --line:#1b2030;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;height:100%;
+    background:var(--bg);
+    font-family:'Courier New', ui-monospace, monospace;
+    color:#e8eaf6;
+    overflow:hidden;
+  }
+  body{
+    display:flex;flex-direction:column;align-items:center;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(0,246,255,0.08), transparent 50%),
+      radial-gradient(ellipse at 80% 100%, rgba(255,43,214,0.08), transparent 50%),
+      var(--bg);
+  }
+
+  header{
+    width:100%;
+    padding:14px 22px;
+    display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);
+    background:rgba(5,6,10,0.7);
+    backdrop-filter:blur(6px);
+    z-index:5;
+  }
+  .brand{
+    font-size:15px;letter-spacing:4px;font-weight:700;
+    color:#fff;
+  }
+  .brand span{
+    color:var(--neon-cyan);
+    text-shadow:0 0 8px var(--neon-cyan), 0 0 18px var(--neon-cyan);
+  }
+  .status{
+    font-size:11px;letter-spacing:2px;color:var(--muted);
+    display:flex;align-items:center;gap:8px;
+  }
+  .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:#444; box-shadow:0 0 0 transparent;
+    transition:all .2s ease;
+  }
+  .dot.live{ background:var(--neon-green); box-shadow:0 0 10px var(--neon-green); }
+  .dot.draw{ background:var(--neon-pink); box-shadow:0 0 10px var(--neon-pink); }
+
+  .stage{
+    position:relative;
+    width:min(96vw, 1100px);
+    aspect-ratio:4/3;
+    margin-top:18px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.02), 0 30px 80px -30px rgba(0,246,255,0.15);
+    background:var(--panel);
+  }
+  video{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    object-fit:cover;
+    transform:scaleX(-1);
+    filter:brightness(0.55) saturate(1.05);
+  }
+  canvas{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+  }
+  #fxCanvas{ transform:scaleX(-1); }
+
+  .overlay-msg{
+    position:absolute;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    flex-direction:column;gap:10px;
+    text-align:center;padding:30px;
+    background:rgba(5,6,10,0.78);
+    z-index:4;
+  }
+  .overlay-msg h2{
+    margin:0;font-size:18px;letter-spacing:2px;color:#fff;
+  }
+  .overlay-msg p{
+    margin:0;color:var(--muted);font-size:13px;max-width:420px;line-height:1.6;
+  }
+  .btn{
+    margin-top:8px;
+    padding:11px 26px;
+    background:transparent;
+    border:1px solid var(--neon-cyan);
+    color:var(--neon-cyan);
+    font-family:inherit;font-size:12px;letter-spacing:3px;
+    border-radius:4px;cursor:pointer;
+    text-shadow:0 0 6px var(--neon-cyan);
+    box-shadow:0 0 14px rgba(0,246,255,0.25), inset 0 0 14px rgba(0,246,255,0.05);
+    transition:all .15s ease;
+  }
+  .btn:hover{ background:rgba(0,246,255,0.08); }
+
+  .hud{
+    position:absolute;left:12px;top:12px;
+    font-size:11px;letter-spacing:1.5px;color:#9aa3c9;
+    background:rgba(5,6,10,0.55);
+    padding:6px 10px;border-radius:4px;
+    border:1px solid var(--line);
+    z-index:3;
+    pointer-events:none;
+  }
+  .hud b{ color:var(--neon-yellow); text-shadow:0 0 6px var(--neon-yellow); }
+
+  .controls{
+    width:min(96vw, 1100px);
+    margin:16px 0 26px;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:14px;flex-wrap:wrap;
+  }
+  .swatches{ display:flex;gap:10px; }
+  .swatch{
+    width:30px;height:30px;border-radius:50%;
+    cursor:pointer;border:2px solid rgba(255,255,255,0.15);
+    transition:transform .12s ease, border-color .12s ease;
+  }
+  .swatch:hover{ transform:scale(1.12); }
+  .swatch.active{ border-color:#fff; transform:scale(1.18); }
+
+  .tools{ display:flex;gap:10px;align-items:center; }
+  .iconbtn{
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:#cfd3ec;
+    font-family:inherit;font-size:11px;letter-spacing:1.5px;
+    padding:10px 16px;border-radius:6px;cursor:pointer;
+    transition:all .15s ease;
+  }
+  .iconbtn:hover{ border-color:var(--neon-cyan); color:var(--neon-cyan); }
+
+  footer{
+    font-size:10.5px;color:var(--muted);letter-spacing:1.5px;
+    padding-bottom:18px;text-align:center;
+  }
+  footer b{ color:var(--neon-pink); text-shadow:0 0 6px var(--neon-pink); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">AIR <span>DRAWER</span></div>
+  <div class="status">
+    <span class="dot" id="camDot"></span> CAMERA
+    <span style="opacity:.3">|</span>
+    <span class="dot" id="drawDot"></span> DRAWING
+  </div>
+</header>
+
+<div class="stage" id="stage">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="fxCanvas"></canvas>
+  <div class="hud" id="hud">PINCH ☝️🤙 INDEX+THUMB TO DRAW · <b>FIST</b> TO PAUSE</div>
+
+  <div class="overlay-msg" id="startOverlay">
+    <h2>RAISE YOUR HAND, WRITE IN LIGHT</h2>
+    <p>Allow camera access. Pinch your thumb and index finger together to draw — release to lift the pen. Open palm and hold still to erase.</p>
+    <button class="btn" id="startBtn">▶ ACTIVATE CAMERA</button>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="swatches" id="swatches">
+    <div class="swatch active" style="background:#00f6ff;box-shadow:0 0 10px #00f6ff;" data-color="0,246,255"></div>
+    <div class="swatch" style="background:#ff2bd6;box-shadow:0 0 10px #ff2bd6;" data-color="255,43,214"></div>
+    <div class="swatch" style="background:#f4ff52;box-shadow:0 0 10px #f4ff52;" data-color="244,255,82"></div>
+    <div class="swatch" style="background:#39ff8f;box-shadow:0 0 10px #39ff8f;" data-color="57,255,143"></div>
+    <div class="swatch" style="background:#b86bff;box-shadow:0 0 10px #b86bff;" data-color="184,107,255"></div>
+  </div>
+  <div class="tools">
+    <button class="iconbtn" id="clearBtn">⨯ CLEAR CANVAS</button>
+    <button class="iconbtn" id="saveBtn">⬇ SAVE PNG</button>
+  </div>
+</div>
+
+<footer>HAND TRACKED LOCALLY IN-BROWSER · NOTHING IS UPLOADED · BUILT WITH <b>MEDIAPIPE</b></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+const video = document.getElementById('video');
+const fx = document.getElementById('fxCanvas');
+const fctx = fx.getContext('2d');
+const stage = document.getElementById('stage');
+const startOverlay = document.getElementById('startOverlay');
+const startBtn = document.getElementById('startBtn');
+const camDot = document.getElementById('camDot');
+const drawDot = document.getElementById('drawDot');
+const hud = document.getElementById('hud');
+
+let currentColor = "0,246,255";
+let strokes = [];      // array of strokes, each stroke = array of {x,y}
+let activeStroke = null;
+let isDrawing = false;
+let lastPinchDist = null;
+let smoothPt = null;
+
+function resizeCanvas(){
+  const r = stage.getBoundingClientRect();
+  fx.width = r.width;
+  fx.height = r.height;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ---- color swatches ----
+document.getElementById('swatches').addEventListener('click', (e)=>{
+  const sw = e.target.closest('.swatch');
+  if(!sw) return;
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  sw.classList.add('active');
+  currentColor = sw.dataset.color;
+});
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  strokes = [];
+  activeStroke = null;
+});
+
+document.getElementById('saveBtn').addEventListener('click', ()=>{
+  // composite video frame (mirrored) + drawing
+  const out = document.createElement('canvas');
+  out.width = fx.width; out.height = fx.height;
+  const octx = out.getContext('2d');
+  octx.save();
+  octx.scale(-1,1);
+  octx.drawImage(video, -out.width, 0, out.width, out.height);
+  octx.restore();
+  octx.filter = 'brightness(0.55)';
+  octx.drawImage(out,0,0); // re-darken pass cheap trick skip
+  octx.filter = 'none';
+  octx.drawImage(fx, 0, 0);
+  const link = document.createElement('a');
+  link.download = 'air-drawer.png';
+  link.href = out.toDataURL('image/png');
+  link.click();
+});
+
+// ---- drawing render loop ----
+function drawNeonStroke(ctx, pts, color){
+  if(pts.length < 2) return;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // outer glow passes
+  const glowLayers = [
+    {width: 18, alpha: 0.10, blur: 28},
+    {width: 10, alpha: 0.22, blur: 16},
+    {width: 5,  alpha: 0.55, blur: 8},
+  ];
+  glowLayers.forEach(layer=>{
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(${color},${layer.alpha})`;
+    ctx.lineWidth = layer.width;
+    ctx.shadowColor = `rgba(${color},0.9)`;
+    ctx.shadowBlur = layer.blur;
+    pts.forEach((p,i)=>{
+      if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+    });
+    ctx.stroke();
+  });
+
+  // bright core line
+  ctx.beginPath();
+  ctx.strokeStyle = `rgba(255,255,255,0.95)`;
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 4;
+  ctx.shadowColor = `rgba(${color},1)`;
+  pts.forEach((p,i)=>{
+    if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function renderFrame(fingertip){
+  fctx.clearRect(0,0,fx.width,fx.height);
+
+  strokes.forEach(s=> drawNeonStroke(fctx, s.pts, s.color));
+
+  if(fingertip){
+    // cursor glow ring
+    fctx.beginPath();
+    fctx.arc(fingertip.x, fingertip.y, isDrawing ? 9 : 13, 0, Math.PI*2);
+    fctx.strokeStyle = isDrawing ? `rgba(${currentColor},1)` : `rgba(255,255,255,0.6)`;
+    fctx.lineWidth = 2;
+    fctx.shadowBlur = 18;
+    fctx.shadowColor = isDrawing ? `rgba(${currentColor},1)` : `rgba(255,255,255,0.6)`;
+    fctx.stroke();
+    fctx.shadowBlur = 0;
+  }
+}
+
+// ---- MediaPipe Hands setup ----
+const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.6
+});
+
+function dist(a,b){
+  return Math.hypot(a.x-b.x, a.y-b.y);
+}
+
+hands.onResults((results)=>{
+  camDot.classList.add('live');
+
+  if(!results.multiHandLandmarks || results.multiHandLandmarks.length === 0){
+    if(isDrawing){ isDrawing=false; activeStroke=null; drawDot.classList.remove('draw'); }
+    renderFrame(null);
+    return;
+  }
+
+  const lm = results.multiHandLandmarks[0];
+  const indexTip = lm[8];
+  const thumbTip = lm[4];
+  const wrist = lm[0];
+  const middleMcp = lm[9];
+
+  // normalize pinch distance relative to hand size (wrist->middle mcp)
+  const handScale = dist(wrist, middleMcp) || 0.1;
+  const pinchDist = dist(indexTip, thumbTip) / handScale;
+
+  const px = indexTip.x * fx.width;
+  const py = indexTip.y * fx.height;
+
+  // smoothing
+  if(!smoothPt){ smoothPt = {x:px, y:py}; }
+  smoothPt.x += (px - smoothPt.x) * 0.5;
+  smoothPt.y += (py - smoothPt.y) * 0.5;
+
+  const PINCH_ON = 0.45;
+  const PINCH_OFF = 0.62;
+
+  if(pinchDist < PINCH_ON && !isDrawing){
+    isDrawing = true;
+    drawDot.classList.add('draw');
+    activeStroke = {color: currentColor, pts: [{x:smoothPt.x, y:smoothPt.y}]};
+    strokes.push(activeStroke);
+  } else if(pinchDist > PINCH_OFF && isDrawing){
+    isDrawing = false;
+    drawDot.classList.remove('draw');
+    activeStroke = null;
+  }
+
+  if(isDrawing && activeStroke){
+    const last = activeStroke.pts[activeStroke.pts.length-1];
+    if(dist({x:last.x/fx.width,y:last.y/fx.height},{x:smoothPt.x/fx.width,y:smoothPt.y/fx.height}) > 0.001){
+      activeStroke.pts.push({x:smoothPt.x, y:smoothPt.y});
+    }
+  }
+
+  renderFrame(smoothPt);
+});
+
+let camera = null;
+
+startBtn.addEventListener('click', async ()=>{
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{width:1280,height:960}});
+    video.srcObject = stream;
+    await video.play();
+    resizeCanvas();
+    startOverlay.style.display = 'none';
+
+    camera = new Camera(video, {
+      onFrame: async ()=>{ await hands.send({image: video}); },
+      width: 1280, height: 960
+    });
+    camera.start();
+  }catch(err){
+    startOverlay.querySelector('p').textContent = "Camera access was blocked or unavailable: " + err.message;
+  }
+});
+
+resizeCanvas();
+</script>
+</body>
+</html>
